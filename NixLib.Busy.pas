@@ -131,7 +131,6 @@ procedure TBusy.Update;
 begin
   if FControl <> nil then
   begin
-    // TODO: Some way of disabling controls without the built in effect
     if NixLib.Globals.DisableEffects then
       FControl.Enabled := not IsBusy
     else
