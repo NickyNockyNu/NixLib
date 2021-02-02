@@ -1,0 +1,12 @@
+**/__history
+**/__recovery
+**/DCU
+**/*.~*
+**/*.dcu
+**/*.dproj
+**/*.local
+**/*.identcache
+**/*.exe
+**/*.map
+
+
