@@ -27,6 +27,8 @@ uses
   System.RTTI;
 
 type
+  TIntScaleType = (stBinaryBytes, stMetricBytes, stFrequency, stMetric, stNumeric, stEmpty);
+
   TStringHelper = record helper for String
   private
     {$REGION 'Property helpers'}
@@ -51,6 +53,8 @@ type
     const CharsNumeric      = '0123456789';
     const CharsAlphaNumeric = CharsAlpha + CharsNumeric;
 
+    const CharsHex = '0123456789ABCDEF';
+
     const CharsQuote = '`"''';
 
     const CharCR    = #13;
@@ -69,33 +73,33 @@ type
     const CharsIdentObj   = CharsIdent + '.';
     {$ENDREGION}
 
-    {$REGION 'Properties'}
+    {$REGION 'Characters'}
     property Chars[AIndex: Integer]: Char read GetChars write SetChars;
 
-    property Length: Integer read GetLength write SetLength;
-    property Size:   Integer read GetSize   write SetSize;
-
     property Ptr[AIndex: Integer]: PChar read GetPtr;
+
+    function FirstChar: Char; inline;
+    function LastChar:  Char; inline;
     {$ENDREGION}
 
-    {$REGION 'Empty'}
+    {$REGION 'Size'}
     const Empty = '';
 
     function IsEmpty:    Boolean; inline;
     function IsNotEmpty: Boolean; inline;
+
+    property Length: Integer read GetLength write SetLength;
+    property Size:   Integer read GetSize   write SetSize;
 
     procedure Clear;
     procedure Burn;
     {$ENDREGION}
 
     {$REGION 'Compare'}
-    function Compare    (const AStr: String; const AIgnoreCase: Boolean = False): Integer;
-    function CompareLike(const AStr: String; const AIgnoreCase: Boolean = True): Extended;
-
-    function Same    (const AStr: String): Boolean; inline;
-    function SameCase(const AStr: String): Boolean; inline;
-
-    function Match(const AMask: String; const AIgnoreCase: Boolean = False): Boolean;
+    function Compare(const AStr: String; const AIgnoreCase: Boolean = False): Integer;
+    function Like   (const AStr: String; const AIgnoreCase: Boolean = True): Extended;
+    function Same   (const AStr: String; const AIgnoreCase: Boolean = False): Boolean; inline;
+    function Match  (const AStr: String; const AIgnoreCase: Boolean = False): Boolean;
 
     function Pos     (const AStr: String; const AStart: Integer = 1; const AIgnoreCase: Boolean = False; const AOutOfQuotes: Boolean = False): Integer;
     function Contains(const AStr: String; const AStart: Integer = 1; const AIgnoreCase: Boolean = False; const AOutOfQuotes: Boolean = False): Boolean; inline;
@@ -104,6 +108,8 @@ type
     function Ends  (const AStr: String; const AIgnoreCase: Boolean = False; const ARemoveIfFound: Boolean = False): Boolean;
 
     function IndexOf(const AStrs: array of String; const AIgnoreCase: Boolean = False): Integer;
+
+    function ValidChars(const AValidChars: String; const AIgnoreCase: Boolean = False): Boolean;
     {$ENDREGION}
 
     {$REGION 'Split'}
@@ -113,9 +119,6 @@ type
     function SplitToken(const ARemove: Boolean = True): String;
 
     function Copy(const AIndex: Integer; const ACount: Integer = -1): String;
-
-    function FirstChar: Char; inline;
-    function LastChar:  Char; inline;
 
     function Start(const ACount: Integer): String; inline;
     {$ENDREGION}
@@ -133,6 +136,16 @@ type
 
     function Markup  (const   CodeUnprintable: Boolean = False): String;
     function UnMarkup(const DecodeUnprintable: Boolean = False): String;
+
+    function URLEncode: String;
+    function URLDecode: String;
+
+    function Rot13: String;
+    function Cipher(const AKey: Cardinal = $D116): String;
+
+    function CalcHash(const AKey: Cardinal = $5A17): Cardinal;
+
+    function CharMap(AChars1, AChars2: String): String;
     {$ENDREGION}
 
     {$REGION 'Tidy'}
@@ -164,36 +177,48 @@ type
 
     function Append(const AStr: String; const ASep: String = ' '): String;
 
-    class function From(const A):    String; overload; static;
-    class function From(R: TVarRec): String; overload; static;
-    class function From(O: TObject): String; overload; static;
-    class function From(V: TValue):  String; overload; static;
+    function Format(Params: array of const): String;
+
+    class function From(const AValue):     String; overload; static;
+    class function From(AValue:  TVarRec): String; overload; static;
+    class function From(AObject: TObject): String; overload; static;
+    class function From(AValue:  TValue):  String; overload; static;
+
+    class function From(AValues: array of const; const ADelim: String = ''): String; overload; static;
 
     class function Join(AValues: array of const; ADelim: String = ' '): String; static;
 
-    class function Base(const AInt: Int64;  const ABase: Integer; AMinSize: Integer = 0): String; overload; static;
-    class function Base(const AStr: String; const ABase: Integer; ADefault: Integer = 0): Int64;  overload; static;
+    class function Base(const AValue: Int64;  const ABase: Integer; AMinSize: Integer = 0): String; overload; static;
+    class function Base(const AValue: String; const ABase: Integer; ADefault: Integer = 0): Int64;  overload; static;
 
-    class function Int(const AInt: Int64; const AMinSize: Integer = 0): String; overload; inline; static;
-    class function Dec(const AInt: Int64; const AMinSize: Integer = 0): String; overload; inline; static;
-    class function Hex(const AInt: Int64; const AMinSize: Integer = 0): String; overload; inline; static;
-    class function Oct(const AInt: Int64; const AMinSize: Integer = 0): String; overload; inline; static;
-    class function Bin(const AInt: Int64; const AMinSize: Integer = 0): String; overload; inline; static;
+    class function Int(const AValue: Int64; const AMinSize: Integer = 0): String; overload; inline; static;
+    class function Dec(const AValue: Int64; const AMinSize: Integer = 0): String; overload; inline; static;
+    class function Hex(const AValue: Int64; const AMinSize: Integer = 0): String; overload; inline; static;
+    class function Oct(const AValue: Int64; const AMinSize: Integer = 0): String; overload; inline; static;
+    class function Bin(const AValue: Int64; const AMinSize: Integer = 0): String; overload; inline; static;
 
-    class function Int(const AStr: String; const ADefault: Int64 = 0): Int64; overload;         static;
-    class function Dec(const AStr: String; const ADefault: Int64 = 0): Int64; overload; inline; static;
-    class function Hex(const AStr: String; const ADefault: Int64 = 0): Int64; overload; inline; static;
-    class function Oct(const AStr: String; const ADefault: Int64 = 0): Int64; overload; inline; static;
-    class function Bin(const AStr: String; const ADefault: Int64 = 0): Int64; overload; inline; static;
+    class function Int(const AValue: String; const ADefault: Int64 = 0): Int64; overload;         static;
+    class function Dec(const AValue: String; const ADefault: Int64 = 0): Int64; overload; inline; static;
+    class function Hex(const AValue: String; const ADefault: Int64 = 0): Int64; overload; inline; static;
+    class function Oct(const AValue: String; const ADefault: Int64 = 0): Int64; overload; inline; static;
+    class function Bin(const AValue: String; const ADefault: Int64 = 0): Int64; overload; inline; static;
 
-    class function Float(const AFloat: Extended; const APrec: Integer = 2): String;   overload; inline; static;
-    class function Float(const AStr: String; const ADefault: Extended = 0): Extended; overload; inline; static;
+    class function Float(const AValue: Extended; const APrec: Integer = 2): String;   overload; inline; static;
+    class function Float(const AValue: String; const ADefault: Extended = 0): Extended; overload; inline; static;
 
-    class function Bool(const ABool: Boolean; const ATrue: String = 'True'; const AFalse: String = 'False'): String; overload; inline; static;
-    class function Bool(const AStr: String; const ADefault: Boolean = False): Boolean;                               overload;         static;
+    class function Bool(const AValue: Boolean; const ATrue: String = 'True'; const AFalse: String = 'False'): String; overload; inline; static;
+    class function Bool(const AValue: String; const ADefault: Boolean = False): Boolean;                               overload;         static;
 
-    class function Pointer(const APtr: Pointer): String; overload; inline; static;
-    class function Pointer(const AStr: String): Pointer; overload; inline; static;
+    class function Pointer(const AValue: Pointer): String; overload; inline; static;
+    class function Pointer(const AValue: String): Pointer; overload; inline; static;
+
+    class function Roman(const AValue: Int64): String; overload; static;
+    class function Roman(const AValue: String): Int64; overload; static;
+
+    class function Duration(const AValue: Int64; const AWantMs: Boolean = False): String; overload; static;
+    class function Duration(const AValue: String): Int64; overload; static;
+
+    class function IntScale(AValue: Int64; ASizeType: TIntScaleType = stMetric; const ABaseAdjust: Integer = 900): String; static;
     {$ENDREGION}
 
     {$REGION 'Load/Save'}
@@ -206,11 +231,23 @@ type
     procedure SaveToStream(const AStream:   TStream; AEncoding: TEncoding = nil; const AWriteBOM: Boolean = True);
     procedure SaveToFile  (const AFileName: String;  AEncoding: TEncoding = nil; const AWriteBOM: Boolean = True);
     {$ENDREGION}
+
+    {$REGION 'Unicode'}
+    function UnicodeMathOffset(const ABase: Integer; const ATable: String = CharsAlpha): String;
+
+    function UnicodeFont(const ASansSerif: Boolean = False; const ABold: Boolean = False; const AItalic: Boolean = False): String;
+
+    function Script:    String; inline;
+    function Frakture:  String; inline;
+    function Monospace: String; inline;
+    {$ENDREGION}
   end;
 
 implementation
 
 uses
+  NixLib.Timing,
+  NixLib.Random,
   NixLib.RTTI;
 
 {$REGION 'Property helpers'}
@@ -250,7 +287,25 @@ begin
 end;
 {$ENDREGION}
 
-{$REGION 'Empty'}
+{$REGION 'Characters'}
+function TStringHelper.FirstChar;
+begin
+  if IsEmpty then
+    Exit(#0);
+
+  Result := Self.Chars[1];
+end;
+
+function TStringHelper.LastChar;
+begin
+  if IsEmpty then
+    Exit(#0);
+
+  Result := Self.Chars[Self.Length];
+end;
+{$ENDREGION}
+
+{$REGION 'Size'}
 function TStringHelper.IsEmpty;
 begin
   Result := Length = 0;
@@ -288,7 +343,7 @@ begin
     Result := System.SysUtils.CompareStr(Self, AStr);
 end;
 
-function TStringHelper.CompareLike;
+function TStringHelper.Like;
 var
   S1, S2:   String;
   MaxRange: Byte;
@@ -348,12 +403,7 @@ end;
 
 function TStringHelper.Same;
 begin
-  Result := Compare(AStr, True) = 0;
-end;
-
-function TStringHelper.SameCase;
-begin
-  Result := Compare(AStr, False) = 0;
+  Result := Compare(AStr, AIgnoreCase) = 0;
 end;
 
 function TStringHelper.Match;
@@ -361,8 +411,6 @@ var
   MStr, CStr: String;
 
   function Comp(MaskI, StrI: Integer): Boolean;
-  var
-    m: Char;
   begin
     if MaskI > MStr.Length then
       Exit(StrI = CStr.Length + 1);
@@ -370,7 +418,7 @@ var
     if StrI > CStr.Length then
       Exit(False);
 
-    m := MStr.Chars[MaskI];
+    var m := MStr.Chars[MaskI];
 
     if m = '*' then
       Result := Comp(Succ(MaskI), Succ(StrI)) or Comp(MaskI, Succ(StrI))
@@ -380,27 +428,24 @@ var
       Result := False;
   end;
 begin
-  if AMask.Copy(1, 1) = '!' then
-    Result := Contains(AMask.Copy(2), 1, AIgnoreCase)
+  if AStr.Copy(1, 1) = '!' then
+    Result := Contains(AStr.Copy(2), 1, AIgnoreCase)
   else
   begin
     CStr := LowerCase(AIgnoreCase);
-    MStr := AMask.LowerCase(AIgnoreCase);
+    MStr := AStr.LowerCase(AIgnoreCase);
 
     Result := Comp(1, 1);
   end;
 end;
 
 function TStringHelper.Pos;
-var
-  i: Integer;
 begin
-
   if AOutOfQuotes then
   begin
     var q: Char := #0;
 
-    for i := AStart to Length do
+    for var i := AStart to Length do
       if q <> #0 then
       begin
         if Self.Chars[i] = q then
@@ -408,12 +453,12 @@ begin
       end
       else if System.Pos(Self.Chars[i], CharsQuote) > 0 then
         q  := Self.Chars[i]
-      else if Copy(i, AStr.Length).Compare(AStr, AIgnoreCase) = 0 then
+      else if Copy(i, AStr.Length).Same(AStr, AIgnoreCase) then
         Exit(i);
   end
   else
-    for i := AStart to Length do
-      if Copy(i, AStr.Length).Compare(AStr, AIgnoreCase) = 0 then
+    for var i := AStart to Length do
+      if Copy(i, AStr.Length).Same(AStr, AIgnoreCase) then
         Exit(i);
 
   Result := 0;
@@ -448,16 +493,23 @@ begin
 
   Result := 0;
 end;
+
+function TStringHelper.ValidChars;
+begin
+  for var C in Self do
+    if AValidChars.Pos(String(C)) = 0 then
+      Exit(False);
+
+  Result := True;
+end;
 {$ENDREGION}
 
 {$REGION 'Split'}
 function TStringHelper.SplitFirst;
-var
-  i: Integer;
 begin
   Self := Self.Trim(ATrim);
 
-  i := Pos(ADelim, 1, False, AOutOfQuotes);
+  var i := Pos(ADelim, 1, False, AOutOfQuotes);
 
   if i = 0 then
   begin
@@ -472,15 +524,12 @@ begin
 end;
 
 function TStringHelper.Split;
-var
-  s: String;
-  e: String;
 begin
-  s := Self.Trim(ATrim);
+  var s := Self.Trim(ATrim);
 
   while s.IsNotEmpty do
   begin
-    e := s.SplitFirst(ADelim, ATrim, AOutofQuotes);
+    var e := s.SplitFirst(ADelim, ATrim, AOutofQuotes);
 
     if e.IsNotEmpty then
     begin
@@ -499,17 +548,13 @@ const
     '<>', '==', '!=', '<=', '>=', '<<', '>>', '&&', '||', '^^', '+=', '-=',
     '++', '--', '&=', '^=', '|=', ':=', '/*', '*/', '//'
   );
-var
-  i: Integer;
-  c: Char;
-  f: Boolean;
 begin
   Result := '';
 
   if IsEmpty then
     Exit;
 
-  i := 1;
+  var i := 1;
 
   if CharsWhitespace.Contains(Self.Chars[i]) then
     while (i < Length) and CharsWhitespace.Contains(Self.Chars[i]) do
@@ -518,7 +563,7 @@ begin
   if i > Length then
     Exit;
 
-  c := Self.Chars[i];
+  var c := Self.Chars[i];
 
   if CharsQuote.Contains(c) then
   begin
@@ -539,7 +584,7 @@ begin
   end
   else if CharsNumeric.Contains(c) then
   begin
-    f := False;
+    var f := False;
 
     repeat
       Result := Result + Self.Chars[i];
@@ -593,22 +638,6 @@ begin
     C := ACount;
 
   Result := System.Copy(Self, AIndex, C);
-end;
-
-function TStringHelper.FirstChar;
-begin
-  if IsEmpty then
-    Exit(#0);
-
-  Result := Self.Chars[1];
-end;
-
-function TStringHelper.LastChar;
-begin
-  if IsEmpty then
-    Exit(#0);
-
-  Result := Self.Chars[Self.Length];
 end;
 
 function TStringHelper.Start;
@@ -712,9 +741,6 @@ const
 {$ENDREGION}
 
 function TStringHelper.Markup;
-var
-  Coded: String;
-  c:     Char;
 begin
   Result := Self.Replace('&', '/+');
 
@@ -724,9 +750,9 @@ begin
 
   if CodeUnprintable then
   begin
-    Coded := '';
+    var Coded := '';
 
-    for c in Result do
+    for var c in Result do
       if CharsIdentObj.Contains(c) then
         Coded := Coded + c
       else
@@ -737,8 +763,6 @@ begin
 end;
 
 function TStringHelper.UnMarkup;
-var
-  i: Integer;
 begin
   Result := Self.Replace('/+', '&');
 
@@ -749,8 +773,112 @@ begin
       Result := Result.Replace('&' + String(Markup.Name) + ';', String(Markup.Value));
 
   if DecodeUnprintable then
-    for i := 0 to 255 do
+    for var i := 0 to 255 do
       Result := Result.Replace('&' + Int(i) + ';', Char(i));
+end;
+
+function TStringHelper.URLEncode;
+begin
+  Result := '';
+
+  for var c in Self do
+    if CharsIdentObj.Contains(c) then
+      Result := Result + c
+    else
+      Result := Result + '%' + Hex(Ord(c), 2);
+end;
+
+function TStringHelper.URLDecode;
+begin
+  Result := '';
+
+  var i := 1;
+
+  while i <= Length do
+  begin
+    if Self.Chars[i] = '%' then
+    begin
+      var c := Copy(i + 1, 2) + '  ';
+
+      if (CharsHex.Pos(c.Chars[1]) = 0)
+      or (CharsHex.Pos(c.Chars[2]) = 0) then
+        Result := Result + Self.Chars[i]
+      else
+      begin
+        c := c.Copy(1, 2);
+        Result := Result + Char(Hex(c));
+        inc(i, 2);
+      end
+    end
+    else
+      Result := Result + Self.Chars[i];
+
+    Inc(i);
+  end;
+end;
+
+function TStringHelper.Rot13;
+const
+  Rot13Tab = CharsAlphaUpper + CharsAlphaUpper +
+             CharsAlphaLower + CharsAlphaLower;
+begin
+  Result := Self;
+
+  for var i := 1 to Result.Length do
+  begin
+    var j := Rot13Tab.Pos(Result.Chars[i]);
+
+    if j > 0 then
+      Result.Chars[i] := Rot13Tab.Chars[j + 13];
+  end;
+end;
+
+function TStringHelper.Cipher;
+var
+  r: TRandom;
+begin
+  r.Seed := AKey;
+  Result := Self;
+
+  for var i := 1 to Result.Length do
+    Result.Chars[i] := Char(Ord(Result.Chars[i]) xor Word(r.Next($FFFF)));
+end;
+
+function TStringHelper.CalcHash;
+const
+  Pow: array[0..7] of Integer = (1, 2, 4, 8, 16, 32, 64, 128);
+var
+  i: Integer;
+  t: Boolean;
+begin
+  Result := 0;
+
+  for var c in Self do
+    for i := 7 downto 0 do
+    begin
+      t := ((Result and 32768) = 32768) xor ((Ord(c) and Pow[i]) = Pow[i]);
+
+      Result := ((Result and 32767) * 2);
+
+      if t then
+        Result := Result xor AKey;
+    end;
+end;
+
+function TStringHelper.CharMap;
+begin
+  Result := Self;
+
+  if AChars1.Length <> AChars2.Length then
+    Exit;
+
+  for var i := 1 to Result.Length do
+  begin
+    var j := AChars1.Pos(Result[i]);
+
+    if J > 0 then
+      Result[i] := AChars2[i];
+  end;
 end;
 {$ENDREGION}
 
@@ -787,9 +915,8 @@ end;
 
 function TStringHelper.Tidy;
 var
-  i:    Integer;
-  c, q: Char;
-  w:    Boolean;
+  i: Integer;
+  c: Char;
 
   function SkipWhitespace: Boolean;
   begin
@@ -809,7 +936,8 @@ begin
   if IsEmpty then
     Exit;
 
-  i := 1; q := #0;
+  i := 1;
+  var q := #0;
 
   repeat
     c := Self.Chars[i];
@@ -823,7 +951,7 @@ begin
     end
     else
     begin
-      w := SkipWhitespace;
+      var w := SkipWhitespace;
 
       if i > Length then
         Break;
@@ -847,8 +975,6 @@ begin
 end;
 
 function TStringHelper.TidyNumeric;
-var
-  i: Integer;
 begin
   Result := Trim;
 
@@ -864,7 +990,7 @@ begin
   while (not Result.IsEmpty) and (Result.FirstChar = '0') do
     Result := Result.Copy(2);
 
-  i := Result.Pos('.') - 1;
+  var i := Result.Pos('.') - 1;
 
   if i < 1 then
     i := Result.Length;
@@ -913,23 +1039,21 @@ begin
 end;
 
 function TStringHelper.Unquote;
-var
-  QuoteChar: Char;
 begin
   Result := Trim;
 
   if Result.IsEmpty then
     Exit;
 
-  QuoteChar := Result.FirstChar;
+  var q := Result.FirstChar;
 
-  if CharsQuote.Contains(QuoteChar) then
+  if CharsQuote.Contains(q) then
   begin
     Result := Result.Copy(2);
     if Result.IsEmpty then
       Exit;
 
-    if Result.LastChar = QuoteChar then
+    if Result.LastChar = q then
       Result := Result.Copy(1, Result.Length - 1);
   end;
 end;
@@ -947,14 +1071,11 @@ begin
 end;
 
 function TStringHelper.Replace;
-var
-  i: Integer;
-  p: Integer;
 begin
   Result := Self;
-  p := AStart;
+  var p := AStart;
 
-  i := Result.Pos(AFindStr, p, AIgnoreCase, AOutOfQuotes);
+  var i := Result.Pos(AFindStr, p, AIgnoreCase, AOutOfQuotes);
 
   while i > 0 do
   begin
@@ -977,14 +1098,12 @@ begin
 end;
 
 function TStringHelper.RAlign;
-var
-  j: Integer;
 begin
   Result := AMask;
 
   for var i := 1 to Length do
   begin
-    j := Result.Length - i + 1;
+    var j := Result.Length - i + 1;
 
     if j < 1 then
       Exit;
@@ -994,14 +1113,12 @@ begin
 end;
 
 function TStringHelper.CAlign;
-var
-  j: Integer;
 begin
   Result := AMask;
 
   for var i := 1 to Length do
   begin
-    j := ((AMask.Length shr 1) - (Length shr 1) + i);
+    var j := ((AMask.Length shr 1) - (Length shr 1) + i);
 
     if j < 1 then
       Continue
@@ -1035,14 +1152,28 @@ begin
   Result := Result + AStr;
 end;
 
-class function TStringHelper.From(const A): String;
+function TStringHelper.Format;
 begin
-  Result := From(TVarRec(A));
+  Result := Self;
+
+  if Result.Contains('%*') then
+    Result := Result.Replace('%*', From(Params, ' '));
+
+  for var i := High(Params) downto Low(Params) do
+    if Result.Contains('%' + Int(i - Low(Params) + 1)) then
+      Result := Result.Replace('%' + Int(i - Low(Params) + 1), From(Params[i]));
+
+  Result := Result.UnMarkup(True);
 end;
 
-class function TStringHelper.From(R: TVarRec): String;
+class function TStringHelper.From(const AValue): String;
 begin
-  with TVarRec(R) do
+  Result := From(TVarRec(AValue));
+end;
+
+class function TStringHelper.From(AValue: TVarRec): String;
+begin
+  with TVarRec(AValue) do
   begin
     case VType of
       vtInteger:       Result := Int(VInteger);
@@ -1074,14 +1205,27 @@ begin
   end;
 end;
 
-class function TStringHelper.From(O: TObject): String;
+class function TStringHelper.From(AObject: TObject): String;
 begin
-  Result := O.RttiAsText;
+  Result := AObject.RttiAsText;
 end;
 
-class function TStringHelper.From(V: TValue): String;
+class function TStringHelper.From(AValue: TValue): String;
 begin
-  Result := V.ToString;
+  Result := AValue.ToString;
+end;
+
+class function TStringHelper.From(AValues: array of const; const ADelim: String = ''): String;
+begin
+  Result := '';
+
+  for var i := Low(AValues) to High(AValues) do
+  begin
+    Result := Result + From(AValues[i]);
+
+    if i < High(AValues) then
+      Result := Result + ADelim;
+  end;
 end;
 
 class function TStringHelper.Join;
@@ -1097,18 +1241,15 @@ begin
   end;
 end;
 
-class function TStringHelper.Base(const AInt: Int64; const ABase: Integer; AMinSize: Integer = 0): String;
-var
-  Val: Int64;
-  Neg: Boolean;
+class function TStringHelper.Base(const AValue: Int64; const ABase: Integer; AMinSize: Integer = 0): String;
 begin
   Result := '';
 
   if ABase > CharsBase.Length then
     Exit;
 
-  Neg := AInt < 0;
-  Val := Abs(AInt);
+  var Neg := AValue < 0;
+  var Val := Abs(AValue);
 
   if Val = 0 then
     Result := CharsBase.Chars[1]
@@ -1127,11 +1268,9 @@ begin
     Result := '-' + Result;
 end;
 
-class function TStringHelper.Base(const AStr: String; const ABase: Integer; ADefault: Integer = 0): Int64;
-var
-  CS: String;
+class function TStringHelper.Base(const AValue: String; const ABase: Integer; ADefault: Integer = 0): Int64;
 begin
-  CS := AStr.Trim.Replace(',', '');
+  var CS := AValue.Trim.Replace(',', '');
 
   if (ABase = 0) or (ABase > CharsBase.Length) or CS.IsEmpty then
     Exit(ADefault);
@@ -1153,16 +1292,16 @@ begin
   end;
 end;
 
-class function TStringHelper.Int(const AInt: Int64; const AMinSize: Integer = 0): String;
+class function TStringHelper.Int(const AValue: Int64; const AMinSize: Integer = 0): String;
 begin
-  Result := Dec(AInt, AMinSize);
+  Result := Dec(AValue, AMinSize);
 end;
 
-class function TStringHelper.Dec(const AInt: Int64; const AMinSize: Integer = 0): String;
+class function TStringHelper.Dec(const AValue: Int64; const AMinSize: Integer = 0): String;
 var
   S: {$IFDEF MSWINDOWS}ShortString{$ELSE}String{$ENDIF};
 begin
-  System.Str(AInt, S);
+  System.Str(AValue, S);
   Result := String(S);
 
   if AMinSize > 0 then
@@ -1170,34 +1309,48 @@ begin
       Result := CharsBase.Chars[1] + Result;
 end;
 
-class function TStringHelper.Hex(const AInt: Int64; const AMinSize: Integer = 0): String;
+class function TStringHelper.Hex(const AValue: Int64; const AMinSize: Integer = 0): String;
 begin
-  Result := Base(AInt, 16, AMinSize);
+  Result := Base(AValue, 16, AMinSize);
 end;
 
-class function TStringHelper.Oct(const AInt: Int64; const AMinSize: Integer = 0): String;
+class function TStringHelper.Oct(const AValue: Int64; const AMinSize: Integer = 0): String;
 begin
-  Result := Base(AInt, 8, AMinSize);
+  Result := Base(AValue, 8, AMinSize);
 end;
 
-class function TStringHelper.Bin(const AInt: Int64; const AMinSize: Integer = 0): String;
+class function TStringHelper.Bin(const AValue: Int64; const AMinSize: Integer = 0): String;
 begin
-  Result := Base(AInt, 2, AMinSize);
+  Result := Base(AValue, 2, AMinSize);
 end;
 
-class function TStringHelper.Int(const AStr: String; const ADefault: Int64 = 0): Int64;
-var
-  Neg: Boolean;
-  V:   String;
+{$REGION 'Bases'}
+type
+  TIntBase = record
+    Base:    Integer;
+    Prefix:  String;
+    Postfix: String;
+  end;
+
+const
+  IntBases: array[0..7] of TIntBase = (
+    (Base:16; Prefix:'$';  Postfix:''), (Base:16; Prefix:'#'; Postfix:''),
+    (Base:16; Prefix:'0x'; Postfix:''), (Base:16; Prefix:'0'; Postfix:'h'),
+    (Base: 8; Prefix:'0o'; Postfix:''), (Base: 8; Prefix:'0'; Postfix:'o'),
+    (Base: 2; Prefix:'0b'; Postfix:''), (Base: 2; Prefix:'0'; Postfix:'b')
+  );{Do not localize}
+{$ENDREGION}
+
+class function TStringHelper.Int(const AValue: String; const ADefault: Int64 = 0): Int64;
 begin
   Result := ADefault;
 
-  V := AStr.Trim.Replace(',', '');
+  var V := AValue.Trim.Replace(',', '');
 
   if V.IsEmpty then
     Exit;
 
-  Neg := V.Chars[1] = '-';
+  var Neg := V.Chars[1] = '-';
   if Neg then
   begin
     V := V.Copy(2);
@@ -1207,11 +1360,11 @@ begin
   end;
 
   try
-{ TODO:    for var i := 0 to System.Length(IntBases) - 1 do
+    for var i := 0 to System.Length(IntBases) - 1 do
       with IntBases[i] do
         if (V.Copy(1, Prefix.Length) = Prefix) and (V.Copy(V.Length - Postfix.Length + 1, Postfix.Length) = Postfix) then
-          Exit(String.Base(V.Copy(Prefix.Length + 1, V.Length - Prefix.Length - Postfix.Length), Base, Default));
-}
+          Exit(String.Base(V.Copy(Prefix.Length + 1, V.Length - Prefix.Length - Postfix.Length), Base, ADefault));
+
     Result := Dec(V, ADefault);
   finally
     if Neg and (Result > 0) then
@@ -1219,87 +1372,321 @@ begin
   end;
 end;
 
-class function TStringHelper.Dec(const AStr: String; const ADefault: Int64 = 0): Int64;
+class function TStringHelper.Dec(const AValue: String; const ADefault: Int64 = 0): Int64;
 begin
-  Result := Base(AStr.Replace(',', ''), 10, ADefault);
+  Result := Base(AValue.Replace(',', ''), 10, ADefault);
 end;
 
-class function TStringHelper.Hex(const AStr: String; const ADefault: Int64 = 0): Int64;
+class function TStringHelper.Hex(const AValue: String; const ADefault: Int64 = 0): Int64;
 begin
-  Result := Base(AStr.Replace(',', ''), 16, ADefault);
+  Result := Base(AValue.Replace(',', ''), 16, ADefault);
 end;
 
-class function TStringHelper.Oct(const AStr: String; const ADefault: Int64 = 0): Int64;
+class function TStringHelper.Oct(const AValue: String; const ADefault: Int64 = 0): Int64;
 begin
-  Result := Base(AStr.Replace(',', ''), 8, ADefault);
+  Result := Base(AValue.Replace(',', ''), 8, ADefault);
 end;
 
-class function TStringHelper.Bin(const AStr: String; const ADefault: Int64 = 0): Int64;
+class function TStringHelper.Bin(const AValue: String; const ADefault: Int64 = 0): Int64;
 begin
-  Result := Base(AStr.Replace(',', ''), 2, ADefault);
+  Result := Base(AValue.Replace(',', ''), 2, ADefault);
 end;
 
-class function TStringHelper.Float(const AFloat: Extended; const APrec: Integer = 2): String;
+class function TStringHelper.Float(const AValue: Extended; const APrec: Integer = 2): String;
 var
   s: {$IFDEF MSWINDOWS}ShortString{$ELSE}String{$ENDIF};
 begin
-  System.Str(AFloat:APrec:APrec, s);
+  System.Str(AValue:APrec:APrec, s);
   Result := String(s);
 end;
 
-class function TStringHelper.Float(const AStr: String; const ADefault: Extended = 0): Extended;
+class function TStringHelper.Float(const AValue: String; const ADefault: Extended = 0): Extended;
 var
   Code: Integer;
 begin
-  Val(AStr.Replace(',', ''), Result, Code);
+  Val(AValue.Replace(',', ''), Result, Code);
 
   if Code <> 0 then
     Result := ADefault;
 end;
 
-class function TStringHelper.Bool(const ABool: Boolean; const ATrue: String = 'True'; const AFalse: String = 'False'): String;
+class function TStringHelper.Bool(const AValue: Boolean; const ATrue: String = 'True'; const AFalse: String = 'False'): String;
 begin
-  if ABool then
+  if AValue then
     Result := ATrue
   else
     Result := AFalse;
 end;
 
-class function TStringHelper.Bool(const AStr: String; const ADefault: Boolean = False): Boolean;
-var
-  t: String;
+class function TStringHelper.Bool(const AValue: String; const ADefault: Boolean = False): Boolean;
 begin
-  if AStr.IsEmpty then
+  if AValue.IsEmpty then
     Exit(ADefault);
 
-  t := AStr.Copy(1, 2).LowerCase;
+  var t := AValue.Copy(1, 2).LowerCase;
 
-  if (t = 'ok') or (t = 'on') or (t = 'en') or ({$IFDEF MSWINDOWS}AnsiChar{$ENDIF}(AStr.Chars[1]) in ['Y', 'y', 'T', 't', #1]) then
+  if (t = 'ok') or (t = 'on') or (t = 'en') or ({$IFDEF MSWINDOWS}AnsiChar{$ENDIF}(AValue.Chars[1]) in ['Y', 'y', 'T', 't', #1]) then
     Result := True
   else
-    Result := Int(AStr, 0) <> 0;
+    Result := Int(AValue, 0) <> 0;
 end;
 
-class function TStringHelper.Pointer(const APtr: Pointer): String;
+class function TStringHelper.Pointer(const AValue: Pointer): String;
 begin
-  Result := Hex(Int64(APtr), SizeOf(System.Pointer) * 4);
+  Result := Hex(Int64(AValue), SizeOf(System.Pointer) * 4);
 end;
 
-class function TStringHelper.Pointer(const AStr: String): Pointer;
+class function TStringHelper.Pointer(const AValue: String): Pointer;
 begin
-  Result := System.Pointer(Int(AStr));
+  Result := System.Pointer(Int(AValue));
+end;
+
+const
+  IntScaleStr: array[TIntScaleType, 0..8] of String = (('bytes', 'KiB',      'MiB',     'GiB',     'TiB',      'PiB',         'EiB',         'ZiB',        'YiB'),
+                                                       ('bytes', 'kB',       'MB',      'GB',      'TB',       'PB',          'EB',          'ZB',         'YB'),
+                                                       ('Hz',    'kHz',      'MHz',     'GHz',     'THz',      'PHz',         'EHz',         'ZHz',        'YHz'),
+                                                       ('',      'K',        'M',       'G',       'T',        'P',           'E',           'Z',          'Y'),
+                                                       ('',      'Thousand', 'Million', 'Billion', 'Trillion', 'Quadrillion', 'Quintillion', 'Sextillion', 'Septillion'),
+                                                       ('',      '',         '',        '',        '',         '',            '',            '',            ''));
+
+  IntScaleBase: array[TIntScaleType] of Integer = (1024, 1000, 1000, 1000, 1000, 1000);
+
+class function TStringHelper.IntScale;
+begin
+  var j: Integer  := 0;
+  var k: Extended := AValue;
+
+  while k > ABaseAdjust do
+  begin
+    k := k / IntScaleBase[ASizeType];
+
+    Inc(j);
+
+    if j = High(IntScaleStr[ASizeType]) then
+      Break;
+  end;
+
+  Result := String.Float(k, 2).TidyNumeric;
+
+  if not IntScaleStr[ASizeType, j].IsEmpty then
+    Result := Result + ' ' + IntScaleStr[ASizeType, j];
+end;
+
+class function TStringHelper.Roman(const AValue: Int64): String;
+type
+  TRomanSections = (rs1000, rs900, rs400, rs500, rs100, rs90, rs40, rs50, rs10, rs9, rs4, rs5, rs1, rsEnd, rsNone);
+  TRomanSection = record
+    Value:  Integer;
+    Prefix: String[2];
+    Jump:   TRomanSections;
+    Next:   TRomanSections;
+  end;
+const
+  RomanSections: array[TRomanSections] of TRomanSection = (
+    (Value:1000; Prefix:'M';  Jump:rsNone; Next:rs900),
+    (Value:0900; Prefix:'CM'; Jump:rs500;  Next:rs90),
+    (Value:0400; Prefix:'CD'; Jump:rs100;  Next:rs90),
+    (Value:0500; Prefix:'D';  Jump:rs400;  Next:rs100),
+    (Value:0100; Prefix:'C';  Jump:rsNone; Next:rs90),
+    (Value:0090; Prefix:'XC'; Jump:rs50;   Next:rs9),
+    (Value:0040; Prefix:'XL'; Jump:rs10;   Next:rs9),
+    (Value:0050; Prefix:'L';  Jump:rs40;   Next:rs10),
+    (Value:0010; Prefix:'X';  Jump:rsNone; Next:rs9),
+    (Value:0009; Prefix:'IX'; Jump:rs5;    Next:rsEnd),
+    (Value:0004; Prefix:'IV'; Jump:rs1;    Next:rsEnd),
+    (Value:0005; Prefix:'V';  Jump:rs4;    Next:rs1),
+    (Value:0001; Prefix:'I';  Jump:rsNone; Next:rsEnd),
+    (Value:0000; Prefix:'';   Jump:rsNone; Next:rsEnd),
+    (Value:0000; Prefix:'';   Jump:rsNone; Next:rsEnd)
+  );
+var
+  Work:    Integer;
+  Section: TRomanSections;
+begin
+  Result  := '';
+  Work    := AValue;
+  Section := rs1000;
+
+  repeat
+    with RomanSections[Section] do
+    begin
+      if (Jump <> rsNone) and (Work < Value) then
+        Section := Jump
+      else
+      begin
+        while Work >= Value do
+        begin
+          Dec(Work, Value);
+
+          Result := Result + String(Prefix);
+
+          if Jump <> rsNone then
+            Break;
+        end;
+
+        if Next = rsEnd then
+          Exit;
+
+        Section := Next;
+      end;
+    end;
+  until False;
+end;
+
+class function TStringHelper.Roman(const AValue: String): Int64;
+const
+  // Quick lut for the characters (messay but fast)
+  RomanChars = ['C', 'D', 'I', 'L', 'M', 'V', 'X']; {Do not localize}
+  RomanValues: array['C'..'X'] of Word =
+    (100, 500, 0, 0, 0, 0, 1, 0, 0, 50, 1000, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 10);
+var
+  c, n: Char;
+  i:    Integer;
+  Neg:  Boolean;
+begin
+  Result := 0;
+
+  Neg := (AValue.Length > 0) and (AValue.FirstChar = '-');
+
+  if Neg then
+    i := 1
+  else
+    i := 0;
+
+  while (i < AValue.Length) do
+  begin
+    Inc(i);
+
+    c := AValue.UpperCase.Chars[i];
+
+    if CharInSet(c, RomanChars) then
+    begin
+      if Succ(i) <= AValue.Length then
+        n := AValue.UpperCase.Chars[i + 1]
+      else
+        n := #0;
+
+      if CharInSet(n, RomanChars) and (RomanValues[c] < RomanValues[n]) then
+      begin
+        Inc(Result, RomanValues[n]);
+        Dec(Result, RomanValues[c]);
+
+        Inc(i);
+      end
+      else
+        Inc(Result, RomanValues[c]);
+    end
+    else
+      Exit(0);
+  end;
+
+  if Neg then
+    Result := -Result;
+end;
+
+class function TStringHelper.Duration(const AValue: Int64; const AWantMs: Boolean = False): String;
+var
+  cy, cw, cd, ch, cm, cs, ms: Int64;
+
+  function DM(L: Int64): Int64;
+  begin
+    if ms >= L then
+    begin
+      Result := ms div L;
+      ms     := ms mod L;
+    end
+    else
+      Result := 0;
+  end;
+begin
+  ms := AValue;
+
+  cy := DM(msPerYear);
+  cw := DM(msPerWeek);
+  cd := DM(msPerDay);
+  ch := DM(msPerHour);
+  cm := DM(msPerMin);
+  cs := DM(msPerSec);
+
+  Result := '';
+
+  if cy > 0 then Result := Result.Append(String.Int(cy) + 'y');
+  if cw > 0 then Result := Result.Append(String.Int(cw) + 'w');
+  if cd > 0 then Result := Result.Append(String.Int(cd) + 'd');
+  if ch > 0 then Result := Result.Append(String.Int(ch) + 'h');
+  if cm > 0 then Result := Result.Append(String.Int(cm) + 'm');
+
+  if cs = 0 then
+  begin
+    if (ms > 0) and AWantMs then
+      Result := Result.Append(String.Int(ms) + 'ms');
+  end
+  else
+  begin
+    if ms = 0 then
+    begin
+      if cs > 0 then
+        Result := Result.Append(String.Int(cs) + 's');
+    end
+    else
+    begin
+      var ds := ((cs * 1000) + ms) / 1000;
+
+      if AWantMs then
+        Result := Result.Append(String.Float(ds).TidyNumeric + 's')
+      else
+        Result := Result.Append(String.Int(Round(ds)) + 's');
+    end;
+  end;
+
+  if Result.IsEmpty then
+    Result := '0s';
+end;
+
+class function TStringHelper.Duration(const AValue: String): Int64;
+var
+  T1, T2: String;
+  V: Int64;
+begin
+  T1     := AValue;
+  Result := 0;
+
+  while T1.IsNotEmpty do
+  begin
+    T2 := T1.SplitToken(True);
+    if T2.IsEmpty then Exit;
+
+    V := T2.AsInteger;
+
+    T2 := T1.SplitToken(True).LowerCase;
+    if T2.IsEmpty then Exit;
+
+    if T2 = 'ms' then
+      Result := Result + V
+    else if T2 = 's' then
+      Result := Result + (V * msPerSec)
+    else if T2 = 'm' then
+      Result := Result + (V * msPerMin)
+    else if T2 = 'h' then
+      Result := Result + (V * msPerHour)
+    else if T2 = 'd' then
+      Result := Result + (V * msPerDay)
+    else if T2 = 'w' then
+      Result := Result + (V * msPerWeek)
+    else if T2 = 'y' then
+      Result := Result + (V * msPerYear);
+  end;
 end;
 {$ENDREGION}
 
 {$REGION 'Load/Save'}
 class function TStringHelper.LoadFromStream(const AStream: TStream; var AEncoding: TEncoding): String;
 var
-  Size: Integer;
   Buffer: TBytes;
 begin
   AEncoding := nil;
 
-  Size := AStream.Size - AStream.Position;
+  var Size := AStream.Size - AStream.Position;
   System.SetLength(Buffer, Size);
 
   AStream.Read(Buffer, 0, Size);
@@ -1316,10 +1703,8 @@ begin
 end;
 
 class function TStringHelper.LoadFromFile(const AFileName: String; var AEncoding: TEncoding): String;
-var
-  Stream: TStream;
 begin
-  Stream := TFileStream.Create(AFileName, fmOpenRead);
+  var Stream := TFileStream.Create(AFileName, fmOpenRead);
 
   try
     Result := LoadFromStream(Stream, AEncoding);
@@ -1358,16 +1743,81 @@ begin
 end;
 
 procedure TStringHelper.SaveToFile;
-var
-  Stream: TStream;
 begin
-  Stream := TFileStream.Create(AFileName, fmCreate or fmOpenWrite);
+  var Stream := TFileStream.Create(AFileName, fmCreate or fmOpenWrite);
 
   try
     SaveToStream(Stream, AEncoding, AWriteBOM);
   finally
     Stream.Free;
   end;
+end;
+{$ENDREGION}
+
+{$REGION 'Unicode'}
+function TStringHelper.UnicodeMathOffset;
+begin
+  Result := '';
+
+  for var c in Self do
+  begin
+    var i := ATable.Pos(c);
+
+    if i > 0 then
+      Result := Result + Char($D835) + Char(ABase + i - 1)
+    else
+      Result := Result + C;
+  end;
+end;
+
+function TStringHelper.UnicodeFont;
+var
+  Base: Word;
+begin
+  if (not ASansSerif) and (not ABold) and (not AItalic) then
+    Exit(Self);
+
+  if ASansSerif then
+    Base := $DDA0
+  else
+    Base := $DBCC;
+
+  if ABold then
+    Base := Base + $34;
+
+  if AItalic then
+    Base := Base + $68;
+
+  Result := UnicodeMathOffset(Base);
+
+  if (not ASansSerif) and (not ABold) then
+    Exit;
+
+  if ASansSerif then
+    Base := $DFE2
+  else
+    Base := $DFC4;
+
+  if ABold then
+    Base := Base + $A;
+
+  Result := Result.UnicodeMathOffset(Base, CharsNumeric);
+end;
+
+function TStringHelper.Script;
+begin
+  Result := UnicodeMathOffset($DCD0);
+end;
+
+function TStringHelper.Frakture;
+begin
+  Result := UnicodeMathOffset($DD6C);
+end;
+
+function TStringHelper.Monospace;
+begin
+  Result := UnicodeMathOffset($DE70);
+  Result := Result.UnicodeMathOffset($DFF6, CharsNumeric);
 end;
 {$ENDREGION}
 
