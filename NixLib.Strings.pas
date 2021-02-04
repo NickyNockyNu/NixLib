@@ -230,6 +230,9 @@ type
 
     procedure SaveToStream(const AStream:   TStream; AEncoding: TEncoding = nil; const AWriteBOM: Boolean = True);
     procedure SaveToFile  (const AFileName: String;  AEncoding: TEncoding = nil; const AWriteBOM: Boolean = True);
+
+    class function FromClipboard: String; static;
+    procedure ToClipboard;
     {$ENDREGION}
 
     {$REGION 'Unicode'}
@@ -246,6 +249,9 @@ type
 implementation
 
 uses
+  FMX.Platform,
+
+  NixLib.Log,
   NixLib.Timing,
   NixLib.Random,
   NixLib.RTTI;
@@ -1704,6 +1710,8 @@ end;
 
 class function TStringHelper.LoadFromFile(const AFileName: String; var AEncoding: TEncoding): String;
 begin
+  Log(AFileName, LogIDLoad);
+
   var Stream := TFileStream.Create(AFileName, fmOpenRead);
 
   try
@@ -1744,6 +1752,8 @@ end;
 
 procedure TStringHelper.SaveToFile;
 begin
+  Log(AFileName, LogIDSave);
+
   var Stream := TFileStream.Create(AFileName, fmCreate or fmOpenWrite);
 
   try
@@ -1751,6 +1761,30 @@ begin
   finally
     Stream.Free;
   end;
+end;
+
+class function TStringHelper.FromClipboard;
+var
+  Svc: IFMXClipboardService;
+  Value: TValue;
+begin
+  if TPlatformServices.Current.SupportsPlatformService(IFMXClipboardService, Svc) then
+  begin
+    Value := Svc.GetClipboard;
+
+    if (not Value.IsEmpty) and Value.IsType<String> then
+      Result := Value.ToString
+    else
+      Result := '';
+  end;
+end;
+
+procedure TStringHelper.ToClipboard;
+var
+  Svc: IFMXClipboardService;
+begin
+  if TPlatformServices.Current.SupportsPlatformService(IFMXClipboardService, Svc) then
+    Svc.SetClipboard(Self);
 end;
 {$ENDREGION}
 

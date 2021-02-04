@@ -94,6 +94,43 @@ type
   end;
 {$ENDREGION}
 
+{$REGION 'TSceneCadencer'}
+  TSceneCadencer = class(TSceneNode)
+  private
+    FTargetTicksPerSec: Integer;
+    FTicksPerSec:       Double;
+
+    FSynchronize: Boolean;
+
+    FRunning:    Boolean;
+    FStopSignal: Boolean;
+
+    FTask: ITask;
+
+    function GetThreaded: Boolean; inline;
+  protected
+    procedure Execute(ASender: TObject); virtual;
+
+    procedure Started; virtual;
+    procedure Stopped; virtual;
+  public
+    constructor Create(const ATargetTicksPerSec: Integer = 60);
+    destructor  Destroy; override;
+
+    procedure Start(const AThreaded: Boolean = True); virtual;
+    procedure Stop; virtual;
+
+    property TargetTicksPerSec: Integer read FTargetTicksPerSec write FTargetTicksPerSec;
+    property TicksPerSec:       Double  read FTicksPerSec;
+
+    property Synchronize: Boolean read FSynchronize write FSynchronize;
+
+    property Running: Boolean read FRunning;
+
+    property Threaded: Boolean read GetThreaded;
+  end;
+{$ENDREGION}
+
 implementation
 
 {$REGION 'TSceneNode'}
@@ -306,6 +343,100 @@ begin
   finally
     Unlock;
   end;
+end;
+{$ENDREGION}
+
+{$REGION 'TSceneCadencer}
+function TSceneCadencer.GetThreaded: Boolean;
+begin
+  Result := FTask <> nil;
+end;
+
+procedure TSceneCadencer.Execute;
+var
+  TickTimer: TStopwatch;
+  TickWatch: TStopwatch;
+  TickCount: Integer;
+  Delta:     Double;
+begin
+  Started;
+
+  TickTimer := TStopwatch.StartNew;
+  TickWatch := TStopwatch.StartNew;
+  TickCount := 0;
+
+  try
+    repeat
+      Delta := TickTimer.WaitFor(1 / FTargetTicksPerSec, False, True);
+
+      if Threaded and FSynchronize then
+        TThread.Synchronize(nil, procedure begin Update(Delta); end)
+      else
+        Update(Delta);
+
+      Inc(TickCount);
+
+      if TickWatch.ElapsedSeconds > 1 then
+      begin
+        FTicksPerSec := TickCount / TickWatch.Restart;
+        TickCount    := 0;
+      end;
+    until FStopSignal;
+  finally
+    if Threaded then
+      TThread.Queue(nil, Stopped)
+    else
+      Stopped;
+  end;
+end;
+
+procedure TSceneCadencer.Started;
+begin
+  FStopSignal := False;
+  FRunning    := True;
+end;
+
+procedure TSceneCadencer.Stopped;
+begin
+  if not FRunning then
+    Exit;
+
+  FTask := nil;
+  FRunning := False;
+end;
+
+constructor TSceneCadencer.Create;
+begin
+  inherited Create(nil, False);
+
+  FTargetTicksPerSec := ATargetTicksPerSec;
+
+  FSynchronize := True;
+end;
+
+destructor TSceneCadencer.Destroy;
+begin
+  Stop;
+
+  inherited;
+end;
+
+procedure TSceneCadencer.Start;
+begin
+  if FRunning then
+    Exit;
+
+  FTask := nil;
+
+  if AThreaded then
+    FTask := TTask.Run(Self, Execute)
+  else
+    Execute(Self);
+end;
+
+procedure TSceneCadencer.Stop;
+begin
+  FStopSignal := True;
 end;
 {$ENDREGION}
 

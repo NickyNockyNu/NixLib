@@ -19,6 +19,8 @@
 
 unit NixLib.Bitmap32;
 
+{$DEFINE BITMAP32RANGECHECK}
+
 interface
 
 uses
@@ -36,6 +38,7 @@ const
 
 type
 {$REGION 'TColour32'}
+  PColour32 = ^TColour32;
   TColour32 = record
   private
 
@@ -68,23 +71,29 @@ type
     Height:       Cardinal;
     Stride:       Integer;
     PixelFormat:  Integer;
-    Scan0:        Pointer;
-    Reserved:     PInteger;
+    Scan0:        PColour32;
+    Reserved:     PColour32;
     Size:         Cardinal;
     LockMode:     TBitmapLockModes;
     LockX:        Cardinal;
     LockY:        Cardinal;
   end;
 
-  TScanline = TMemory<TColour32>;
+  TScanline32 = TMemory<TColour32>;
+
+  TBlkRender32 = procedure(const AColour: TColour32; const ADest: PColour32; const ACount, AStride: Integer);
+  TBltRender32 = procedure(const ASource, ADest: PColour32; const ACount, ASourceStride: Integer);
 
   TCustomBitmap32 = class abstract
+  private
+    FBlkRender: TBlkRender32;
+    FBltRender: TBltRender32;
   protected
     procedure SetWidth (AValue: Cardinal); virtual;
     procedure SetHeight(AValue: Cardinal); virtual;
   public
     BitmapData: TBitmapData;
-    Scanlines:  array of TScanline;
+    Scanlines:  array of TScanline32;
 
     constructor Create(const AWidth: Integer = 0; const AHeight: Integer = 0);
     destructor  Destroy; override;
@@ -94,11 +103,26 @@ type
     function Lock  (var ABitmapData: TBitmapData; const Ax, Ay, Aw, Ah: Integer; const ALockMode: TBitmapLockModes): Boolean; virtual;
     function Unlock(var ABitmapData: TBitmapData): Boolean; virtual;
 
-    property Width:  Cardinal read BitmapData.Width  write SetWidth;
-    property Height: Cardinal read BitmapData.Height write SetHeight;
-    property Stride: Integer  read BitmapData.Stride;
-    property Bits:   Pointer  read BitmapData.Scan0;
-    property Size:   Cardinal read BitmapData.Size;
+    procedure Clear(const AColour: TColour32);
+
+    function  GetPixel(AX, AY: Integer): TColour32;
+    procedure SetPixel(AX, AY: Integer; Colour: TColour32);
+
+    procedure HLine(AX, AY, ALen: Integer; const AColour: TColour32);
+    procedure VLine(AX, AY, ALen: Integer; const AColour: TColour32);
+
+    procedure Line(AStartX, AStartY, AEndX, AEndY: Integer; const AColour: Cardinal);
+
+    property BlkRender: TBlkRender32 read FBlkRender write FBlkRender;
+    property BltRender: TBltRender32 read FBltRender write FBltRender;
+
+    property Pixels[AX, AY: Integer]: TColour32 read GetPixel write SetPixel;
+
+    property Width:  Cardinal  read BitmapData.Width  write SetWidth;
+    property Height: Cardinal  read BitmapData.Height write SetHeight;
+    property Stride: Integer   read BitmapData.Stride;
+    property Bits:   PColour32 read BitmapData.Scan0;
+    property Size:   Cardinal  read BitmapData.Size;
   end;
 {$ENDREGION}
 
@@ -136,6 +160,11 @@ type
     property DC:     HDC     read GetDC;
   end;
 {$ENDIF}
+{$ENDREGION}
+
+{$REGION 'Render'}
+procedure BlkCopy32(const AColour: TColour32; const ADest: PColour32; const ACount, AStride: Integer);
+procedure BltCopy32(const ASource, ADest: PColour32; const ACount, ASourceStride: Integer);
 {$ENDREGION}
 
 implementation
@@ -272,7 +301,7 @@ begin
     if lmRead in ALockMode then
     begin
       p1 := Pointer(Integer(Scanlines[yy]) + (xx shl 2));
-      p2 := BitmapData.Scan0;
+      p2 := Pointer(BitmapData.Scan0);
 
       for i := 0 to hh - 1 do
       begin
@@ -305,8 +334,8 @@ begin
 
   if (lmUserBuf in ABitmapData.LockMode) and (lmWrite in ABitmapData.LockMode) then
   begin
-    p1 := Pointer(Integer(Scanlines[ABitmapData.LockX]) + Integer(ABitmapData.LockY shl 2));
-    p2 := ABitmapData.Scan0;
+    p1 := Pointer(Cardinal(Scanlines[ABitmapData.LockX]) + Cardinal(ABitmapData.LockY shl 2));
+    p2 := Pointer(ABitmapData.Scan0);
 
     for i := 0 to ABitmapData.Height - 1 do
     begin
@@ -318,6 +347,154 @@ begin
   end;
 
   FillChar(ABitmapData, 0, sizeof(ABitmapData));
+end;
+
+procedure TCustomBitmap32.Clear;
+begin
+  for var i := 0 to Height - 1 do
+  begin
+    var p := Scanlines[i];
+    FBlkRender(AColour, p, Width, BitmapData.Stride);
+  end;
+end;
+
+function TCustomBitmap32.GetPixel;
+begin
+{$IFDEF BITMAP32RANGECHECK}
+  if (AX < 0) or (AX > Integer(BitmapData.Width  - 1)) or
+     (AY < 0) or (AY > Integer(BitmapData.Height - 1)) then
+    Exit(0);
+{$ENDIF}
+
+  Result := Cardinal(Pointer(Integer(Scanlines[AY]) + (AX shl 2))^);
+end;
+
+procedure TCustomBitmap32.SetPixel;
+begin
+{$IFDEF BITMAP32RANGECHECK}
+  if (AX < 0) or (AY > Integer(BitmapData.Width  - 1)) or
+     (AY < 0) or (AY > Integer(BitmapData.Height - 1)) then
+    Exit;
+{$ENDIF}
+
+  var p := Pointer(Integer(Scanlines[AY]) + (AX shl 2));
+
+  if @FBlkRender = nil then
+    Cardinal(p^) := Colour
+  else
+    BlkRender(Colour, p, 1, 1);
+end;
+
+procedure TCustomBitmap32.HLine;
+begin
+{$IFDEF BITMAP32RANGECHECK}
+  if (AX < 0) or (AY > Integer(BitmapData.Height - 1)) or (AX > Integer(BitmapData.Width - 1)) then
+    Exit;
+
+  if AX < 0 then
+  begin
+    ALen := ALen + AX;
+    AX := 0;
+  end;
+
+  if ALen <= 0 then
+    Exit;
+
+  if (AX + ALen) > Integer(BitmapData.Width - 1) then
+    ALen := Integer(BitmapData.Width) - AX;
+{$ENDIF}
+
+  var p := Pointer(Integer(Scanlines[AY]) + (AX shl 2));
+
+  FBlkRender(AColour, p, ALen, 4);
+end;
+
+procedure TCustomBitmap32.VLine;
+begin
+{$IFDEF BITMAP32RANGECHECK}
+  if (AX < 0) or (AX > Integer(BitmapData.Width - 1)) or (AY > Integer(BitmapData.Height - 1)) then
+    Exit;
+
+  if AY < 0 then
+  begin
+    ALen := ALen + AY;
+    AY := 0;
+  end;
+
+  if ALen <= 0 then
+    Exit;
+
+  if (AY + ALen) > Integer(BitmapData.Height - 1) then
+    ALen := Integer(BitmapData.Height) - AY;
+{$ENDIF}
+
+  var p := Pointer(Integer(Scanlines[AY]) + (AX shl 2));
+  var s := BitmapData.Stride;
+
+  FBlkRender(AColour, p, ALen, s);
+end;
+
+procedure TCustomBitmap32.Line;
+var
+  iy: Integer;
+begin
+  var dx := AEndX - AStartX;
+  var dy := AEndY - AStartY;
+
+  if dx < 0 then
+  begin
+    dx := -dx; AStartX := AEndX;
+    dy := -dy; AStartY := AEndY;
+  end;
+
+  if dy < 0 then
+  begin
+    dy := -dy;
+    iy := -1;
+  end
+  else
+    iy := 1;
+
+  if dx > dy then
+  begin
+    var f1 := dy shl 1;
+    var f2 := f1 - dx;
+    var f3 := f2 - dx;
+
+    for var i := 0 to dx do
+    begin
+      SetPixel(AStartX, AStartY, AColour);
+      Inc(AStartX);
+
+      if f2 < f1 then
+        Inc(f2, f1)
+      else
+      begin
+        Inc(f2, f3);
+        Inc(AStartY, iy);
+      end;
+    end;
+  end
+  else
+  begin
+    var f1 := dx shl 1;
+    var f2 := f1 - dy;
+    var f3 := f2 - dy;
+
+    for var i := 0 to dy do
+    begin
+      SetPixel(AStartX, AStartY, AColour);
+      Inc(AStartY, iy);
+
+      if f2 < f1 then
+        Inc(f2, f1)
+      else
+      begin
+        Inc(f2, f3);
+        Inc(AStartX);
+      end;
+    end;
+  end;
 end;
 {$ENDREGION}
 
@@ -381,7 +558,7 @@ begin
 
     FInfo.bmiHeader := FHeader;
 
-    FHandle := CreateDIBSection(0, FInfo, DIB_RGB_COLORS, BitmapData.Scan0, 0, 0);
+    FHandle := CreateDIBSection(0, FInfo, DIB_RGB_COLORS, Pointer(BitmapData.Scan0), 0, 0);
 
     if FHandle = 0 then
     begin
@@ -429,6 +606,26 @@ begin
   FDC := 0;
 end;
 {$ENDIF}
+{$ENDREGION}
+
+{$REGION 'Render'}
+procedure BltCopy32;
+begin
+  Move(ASource^, ADest^, ACount shl 2);
+end;
+
+procedure BlkCopy32;
+var
+  P: PColour32;
+begin
+  P := ADest;
+
+  for var i := 1 to ACount do
+  begin
+    P^ := AColour;
+    Inc(P);
+  end;
+end;
 {$ENDREGION}
 
 end.

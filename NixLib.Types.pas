@@ -247,6 +247,8 @@ type
     function DecRet(const ACount: Integer = 1; const AMin: Integer = Integer.Min): Integer; inline; // --i
 
     function Clamp(const AMin: Integer = Integer.Min; const AMax: Integer = Integer.Max): Integer;
+
+    function ClampDelta(var AWidth: Integer; const AMin: Integer = Integer.Min; const AMax: Integer = Integer.Max): Integer;
   end;
 {$ENDREGION}
 
@@ -564,6 +566,24 @@ begin
     Result := AMin
   else
     Result := Self;
+end;
+
+function TIntegerHelper.ClampDelta;
+begin
+  Result := 0;
+
+  if Self < AMin then
+  begin
+    Result := AMin - Self;
+    AWidth := AWidth - Result;
+    Self   := AMin;
+  end;
+
+  if (Self + AWidth) > AMax then
+    AWidth := AMax - Self;
+
+  if AWidth < 0 then
+    AWidth := 0;
 end;
 {$ENDREGION}
 

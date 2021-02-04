@@ -21,6 +21,15 @@ unit NixLib.Globals;
 
 interface
 
+const AppPlatform = {$IFDEF MSWINDOWS}'Windows'{$ELSEIF DEFINED(IOS)}'iOS'{$ELSEIF DEFINED(ANDROID)}'Android'{$ELSEIF DEFINED(MACOS)}'Mac OS'{$ELSEIF DEFINED(LINUX)}'Linux'{$ELSE}'Undefined Platform'{$ENDIF};
+const AppCPU      = {$IFDEF CPUX86}'IA32'{$ELSEIF DEFINED(CPUX64)}'IA64'{$ELSEIF DEFINED(ARM32)}'ARM32'{$ELSEIF DEFINED(ARM64)}'ARM64'{$ELSE}'Undefined CPU'{$ENDIF};
+
+var AppName:       String  = '';
+var AppVersionNum: Single  = 0.1;
+var AppVersionStr: String  = '0.1 alpha';
+var AppRegistered: String  = '';
+var AppDebug:      Boolean = False;
+
 var
   DisableEffects: Boolean = False;
 

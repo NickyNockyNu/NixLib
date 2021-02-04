@@ -27,8 +27,8 @@ uses
 {$ENDIF}
   System.SysUtils,
 
-  NixLib.Strings,
-  NixLib.Rtti;
+  NixLib.Globals,
+  NixLib.Strings;
 
 const
   LogIDMessage = 0;
@@ -45,13 +45,15 @@ const
   LogIDSystem = 30;
   LogIDUser   = 31;
 
+  LogIDDebug = 40;
+
 type
   TLogProc = reference to procedure(AStr: String; const AEventID: Integer = LogIDMessage);
 
 var
-  LogProc: TLogProc = nil;
+  LogProc:    TLogProc = nil;
   LogTimeFmt: String = 'd/m/y h:mm:ss.zzz > ';
-  LogEnabled: Boolean = True;
+  LogEnabled: Boolean = False;
 
 procedure Log(AStr: String; const AEventID: Integer = LogIDMessage);
 
@@ -64,6 +66,9 @@ var
   O: String;
 begin
   if not LogEnabled then
+    Exit;
+
+  if (AEventID = LogIDDebug) and (not AppDebug) then
     Exit;
 
   if Assigned(LogProc) then
@@ -104,6 +109,8 @@ begin
 
     LogIDSystem: if AUnicodeGlyph then Result := '🖥' else Result := 'System';
     LogIDUser:   if AUnicodeGlyph then Result := '👤' else Result := 'User';
+
+    LogIDDebug: if AUnicodeGlyph then Result := '🐞' else Result := 'Debug';
   else
     if AUnicodeGlyph then Result := '🖥' else Result := 'Event' + IntToStr(AEventID);
   end;
