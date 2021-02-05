@@ -33,9 +33,10 @@ uses
   NixLib.Timing;
 
 type
+  TSceneNode = class;
+
 {$REGION 'TSceneNode'}
   TSceneNode = class
-  private
     FParent:   TSceneNode;
     FChildren: TList<TSceneNode>;
 
@@ -61,15 +62,18 @@ type
     constructor Create(const AParent: TSceneNode; const AAutoFree: Boolean = True);
     destructor  Destroy; override;
 
-    procedure Lock;
-    procedure Unlock(const ASignal: Boolean = True);
-    procedure Unlocked; virtual;
-
     function  Find  (const AChild: TSceneNode): Integer;
     function  Exists(const AChild: TSceneNode): Boolean; inline;
     function  Add   (const AChild: TSceneNode): Integer;
     procedure Remove(const AChild: TSceneNode; const AAndFree: Boolean = True);
     procedure Clear (const AAndFree: Boolean = True);
+
+    procedure Lock;
+    procedure Unlock(const ASignal: Boolean = True);
+    procedure Unlocked; virtual;
+
+    function  Initialize: Boolean; virtual;
+    procedure Finalize;            virtual;
 
     procedure PushState; virtual;
     procedure PopState;  virtual;
@@ -79,11 +83,11 @@ type
 
     procedure Yield;
 
-    property Parent: TSceneNode read FParent write SetParent;
-    property Root:   TSceneNode read GetRoot;
-
     property ChildCount:                Integer    read GetChildCount;
     property Children[AIndex: Integer]: TSceneNode read GetChild;
+
+    property Parent: TSceneNode read FParent write SetParent;
+    property Root:   TSceneNode read GetRoot;
 
     property Data: Pointer read FData write FData;
 
@@ -94,11 +98,24 @@ type
   end;
 {$ENDREGION}
 
+{$REGION 'TSceneMethod'}
+  TSceneMethodRef = reference to function(const ADelta: Double): Boolean;
+
+  TSceneMethod = class(TSceneNode)
+  private
+    FMethod: TSCeneMethodRef;
+  public
+    constructor Create(const AParent: TSceneNode; AMethod: TSceneMethodRef; const AAutoFree: Boolean = True);
+
+    function Process(const ADelta: Double = 1): Boolean; override;
+  end;
+{$ENDREGION}
+
 {$REGION 'TSceneCadencer'}
   TSceneCadencer = class(TSceneNode)
   private
     FTargetTicksPerSec: Integer;
-    FTicksPerSec:       Double;
+    FTicksPerSec:       Integer;
 
     FSynchronize: Boolean;
 
@@ -121,7 +138,7 @@ type
     procedure Stop; virtual;
 
     property TargetTicksPerSec: Integer read FTargetTicksPerSec write FTargetTicksPerSec;
-    property TicksPerSec:       Double  read FTicksPerSec;
+    property TicksPerSec:       Integer read FTicksPerSec;
 
     property Synchronize: Boolean read FSynchronize write FSynchronize;
 
@@ -190,7 +207,8 @@ constructor TSceneNode.Create;
 begin
   inherited Create;
 
-  FLock := 0;
+  FLock    := 0;
+  FEnabled := True;
 
   FChildren := TList<TSceneNode>.Create;
 
@@ -294,6 +312,20 @@ begin
   FChildren.Clear;
 end;
 
+function TSceneNode.Initialize: Boolean;
+begin
+  for var i := FChildren.Count - 1 downto 0 do
+    if not FChildren[i].Initialize then
+      Exit(False);
+
+  Result := True;
+end;
+
+procedure TSceneNode.Finalize;
+begin
+  {}
+end;
+
 procedure TSceneNode.PushState;
 begin
   {}
@@ -310,11 +342,9 @@ begin
 end;
 
 function TSceneNode.Update;
-var
-  i: Integer;
 begin
   if Locked or (not Enabled) then
-    Exit(False);
+    Exit(True);
 
   PushState;
 
@@ -322,7 +352,7 @@ begin
     Result := Process(ADelta);
 
     if Result then
-      for i := FChildren.Count - 1 downto 0 do
+      for var i := FChildren.Count - 1 downto 0 do
         if (not FChildren[i].Update(ADelta)) and FChildren[i].FAutoFree then
         begin
           FChildren[i].FParent := nil;
@@ -346,7 +376,24 @@ begin
 end;
 {$ENDREGION}
 
-{$REGION 'TSceneCadencer}
+{$REGION 'TSceneMethod'}
+constructor TSceneMethod.Create;
+begin
+  inherited Create(AParent, AAutoFree);
+
+  FMethod := AMethod;
+end;
+
+function TSceneMethod.Process;
+begin
+  if Assigned(FMethod) then
+    Result := FMethod(ADelta)
+  else
+    Result := False;
+end;
+{$ENDREGION}
+
+{$REGION 'TSceneCadencer'}
 function TSceneCadencer.GetThreaded: Boolean;
 begin
   Result := FTask <> nil;
@@ -378,12 +425,12 @@ begin
 
       if TickWatch.ElapsedSeconds > 1 then
       begin
-        FTicksPerSec := TickCount / TickWatch.Restart;
+        FTicksPerSec := Round(TickCount / TickWatch.Restart);
         TickCount    := 0;
       end;
     until FStopSignal;
   finally
-    if Threaded then
+    if Threaded and FSynchronize then
       TThread.Queue(nil, Stopped)
     else
       Stopped;
@@ -411,7 +458,7 @@ begin
 
   FTargetTicksPerSec := ATargetTicksPerSec;
 
-  FSynchronize := True;
+  FSynchronize := False;
 end;
 
 destructor TSceneCadencer.Destroy;

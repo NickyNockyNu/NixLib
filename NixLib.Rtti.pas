@@ -57,6 +57,8 @@ type
     function RttiIsReadable (const AName: String): Boolean;
     function RttiIsWriteable(const AName: String): Boolean;
 
+    function RttiIsMethod(const AName: String): Boolean;
+
     property This: TObject read GetThis;
 
     property RttiAsText: String read RttiGetAsText write RttiSetAsText;
@@ -66,13 +68,15 @@ type
 {$REGION 'TExpandableObject'}
   TExpandableObject = class
   public
-    function  RttiReadExpandedProperty (const AName: String): TValue;        virtual;
+    function  RttiReadExpandedProperty (const AName: String): TValue;         virtual;
     procedure RttiWriteExpandedProperty(const AName: String; AValue: TValue); virtual;
 
     function RttiInvokeExpandedMethod(const AName: String; AArgs: array of TValue): TValue; virtual;
 
     function RttiIsExpandedReadable (const AName: String): Boolean; virtual;
     function RttiIsExpandedWriteable(const AName: String): Boolean; virtual;
+
+    function RttiIsExpandedMethod(const AName: String): Boolean; virtual;
   end;
 {$ENDREGION}
 
@@ -109,16 +113,15 @@ end;
 
 function TRttiContextHelper.FindPublishedType;
 var
-  i:    Integer;
-  f, n: String;
+  i: Integer;
 begin
-  f := AName.LowerCase;
+  var f := AName.LowerCase;
 
   Result := nil;
 
   for var Typ in Context.GetTypes do
   begin
-    n := Result.QualifiedName.LowerCase;
+    var n := Result.QualifiedName.LowerCase;
 
     for i := n.Length downto 1 do
       if n[i] = '.' then
@@ -182,8 +185,6 @@ begin
 end;
 
 function TObjectHelper.RttiReadProperty;
-var
-  RttiProperty: TRttiProperty;
 begin
   TMonitor.Enter(Self);
 
@@ -200,7 +201,7 @@ begin
           end;
       end;
 
-    RttiProperty := TRttiContext.Context.GetType(Self.ClassType).GetProperty(AName);
+    var RttiProperty := TRttiContext.Context.GetType(Self.ClassType).GetProperty(AName);
 
     if (RttiProperty = nil) or (RttiProperty.Visibility in [mvPrivate, mvProtected]) then
       raise EUnknownProperty.CreateFmt(SUnknownProperty, [AName]);
@@ -212,8 +213,6 @@ begin
 end;
 
 procedure TObjectHelper.RttiWriteProperty;
-var
-  RttiProperty: TRttiProperty;
 begin
   TMonitor.Enter(Self);
 
@@ -230,7 +229,7 @@ begin
           end;
       end;
 
-    RttiProperty := TRttiContext.Context.GetType(Self.ClassType).GetProperty(AName);
+    var RttiProperty := TRttiContext.Context.GetType(Self.ClassType).GetProperty(AName);
 
     if (RttiProperty = nil) or (RttiProperty.Visibility in [mvPrivate, mvProtected]) then
       raise EUnknownProperty.CreateFmt(SUnknownProperty, [AName]);
@@ -245,8 +244,6 @@ begin
 end;
 
 function TObjectHelper.RttiInvokeMethod;
-var
-  RttiMethod: TRttiMethod;
 begin
   TMonitor.Enter(Self);
 
@@ -254,7 +251,7 @@ begin
     if Self is TExpandableObject then
       with Self as TExpandableObject do
       begin
-        if RttiIsExpandedReadable(AName) then
+        if RttiIsExpandedMethod(AName) then
           try
             Result := RttiInvokeExpandedMethod(AName, AArgs);
             Exit;
@@ -263,7 +260,7 @@ begin
           end;
       end;
 
-    RttiMethod := TRttiContext.Context.GetType(Self.ClassType).GetMethod(AName);
+    var RttiMethod := TRttiContext.Context.GetType(Self.ClassType).GetMethod(AName);
 
     if (RttiMethod = nil) or (RttiMethod.Visibility in [mvPrivate, mvProtected]) then
       raise EUnknownMethod.CreateFmt(SUnknownMethod, [AName]);
@@ -275,9 +272,6 @@ begin
 end;
 
 function TObjectHelper.RttiIsReadable;
-var
-  RttiProperty: TRttiProperty;
-  RttiMethod:   TRttiMethod;
 begin
   if Self is TExpandableObject then
   begin
@@ -287,20 +281,11 @@ begin
       Exit;
   end;
 
-  RttiProperty := TRttiContext.Context.GetType(Self.ClassType).GetProperty(AName);
-
-  if RttiProperty <> nil then
-    Result := (RttiProperty.Visibility in [mvPublic, mvPublished]) and RttiProperty.IsReadable
-  else
-  begin
-    RttiMethod := TRttiContext.Context.GetType(Self.ClassType).GetMethod(AName);
-    Result := (RttiMethod <> nil) and (RttiMethod.Visibility in [mvPublic, mvPublished]);
-  end;
+  var RttiProperty := TRttiContext.Context.GetType(Self.ClassType).GetProperty(AName);
+  Result := (RttiProperty <> nil) and (RttiProperty.Visibility in [mvPublic, mvPublished]) and RttiProperty.IsReadable
 end;
 
 function TObjectHelper.RttiIsWriteable;
-var
-  RttiProperty: TRttiProperty;
 begin
   if Self is TExpandableObject then
   begin
@@ -310,9 +295,22 @@ begin
       Exit;
   end;
 
-  RttiProperty := TRttiContext.Context.GetType(Self.ClassType).GetProperty(AName);
-
+  var RttiProperty := TRttiContext.Context.GetType(Self.ClassType).GetProperty(AName);
   Result := (RttiProperty <> nil) and (RttiProperty.Visibility in [mvPublic, mvPublished]) and RttiProperty.IsWritable;
+end;
+
+function TObjectHelper.RttiIsMethod;
+begin
+  if Self is TExpandableObject then
+  begin
+    Result := TExpandableObject(Self).RttiIsExpandedMethod(AName);
+
+    if Result then
+      Exit;
+  end;
+
+  var RttiMethod := TRttiContext.Context.GetType(Self.ClassType).GetMethod(AName);
+  Result := (RttiMethod <> nil) and (RttiMethod.Visibility in [mvPublic, mvPublished]);
 end;
 {$ENDREGION}
 
@@ -338,6 +336,11 @@ begin
 end;
 
 function TExpandableObject.RttiIsExpandedWriteable;
+begin
+  Result := False;
+end;
+
+function TExpandableObject.RttiIsExpandedMethod;
 begin
   Result := False;
 end;

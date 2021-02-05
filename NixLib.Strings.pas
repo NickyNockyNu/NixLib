@@ -24,7 +24,9 @@ interface
 uses
   System.SysUtils,
   System.Classes,
-  System.RTTI;
+  System.RTTI,
+
+  NixLib.Types;
 
 type
   TIntScaleType = (stBinaryBytes, stMetricBytes, stFrequency, stMetric, stNumeric, stEmpty);
@@ -118,7 +120,7 @@ type
 
     function SplitToken(const ARemove: Boolean = True): String;
 
-    function Copy(const AIndex: Integer; const ACount: Integer = -1): String;
+    function Copy(const AIndex: Integer; const ACount: Integer = Integer.Min): String;
 
     function Start(const ACount: Integer): String; inline;
     {$ENDREGION}
@@ -638,7 +640,7 @@ function TStringHelper.Copy;
 var
   C: Integer;
 begin
-  if ACount = -1 then
+  if ACount = Integer.Min then
     C := Length
   else
     C := ACount;

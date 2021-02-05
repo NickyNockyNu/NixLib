@@ -4,6 +4,7 @@ program test;
 
 uses
   System.SysUtils,
+  System.Rtti,
   NixLib.Strings in '..\NixLib.Strings.pas',
   NixLib.Rtti in '..\NixLib.Rtti.pas',
   NixLib.Random in '..\NixLib.Random.pas',
@@ -11,7 +12,6 @@ uses
   NixLib.Bitmap32 in '..\NixLib.Bitmap32.pas',
   NixLib.Types in '..\NixLib.Types.pas',
   NixLib.Timing in '..\NixLib.Timing.pas',
-  NixLib.Cadencer in '..\NixLib.Cadencer.pas',
   NixLib.Config in '..\NixLib.Config.pas',
   NixLib.Log in '..\NixLib.Log.pas',
   NixLib.Busy in '..\NixLib.Busy.pas',
@@ -26,14 +26,28 @@ uses
   NixLib.Transitions in '..\NixLib.Transitions.pas',
   NixLib.Shapes in '..\NixLib.Shapes.pas',
   NixLib.Switcher in '..\NixLib.Switcher.pas',
-  NixLib.SceneGraph in '..\NixLib.SceneGraph.pas';
+  NixLib.SceneGraph in '..\NixLib.SceneGraph.pas',
+  NixLib.Evaluator in '..\NixLib.Evaluator.pas';
 
+var
+  N: TNamespace;
+  R: TValue;
+  E: String;
 begin
-  try
-    {}
-  except
-    on E: Exception do
-      Writeln(E.ClassName, ': ', E.Message);
-  end;
+  N := TNamespace.Create;
+  repeat
+    try
+      ReadLn(E);
+      R := N.Evaluate(E);
+
+      if not R.IsEmpty then
+        Writeln(R.ToString);
+    except
+      on E: Exception do
+      begin
+        WriteLn(E.ClassName, ': ', E.Message);
+      end;
+    end;
+  until False;
 end.
 
