@@ -33,6 +33,8 @@ uses
   NixLib.Strings;
 
 type
+  TNamespace = class;
+
   EEvaluator = class(Exception);
 
 {$REGION 'TVariables'}
@@ -41,6 +43,9 @@ type
   TVariables = class(TExpandableObject)
   private
     FNamedValues: TNamedValues;
+
+    function  GetVariable(AName: String): TValue; inline;
+    procedure SetVariable(AName: String; AValue: TValue); inline;
   public
     constructor Create;
     destructor  Destroy; override;
@@ -51,8 +56,12 @@ type
     function RttiIsExpandedReadable (const AName: String): Boolean; override;
     function RttiIsExpandedWriteable(const AName: String): Boolean; override;
 
+    procedure Clear; inline;
     procedure Declare(AName: String; const AValue: TValue);
-    procedure Delete (AName: String);
+    procedure Delete (AName: String); inline;
+    function  Exists (AName: String): Boolean; inline;
+
+    property Variables[AName: String]: TValue read GetVariable write SetVariable; default;
   end;
 {$ENDREGION}
 
@@ -67,6 +76,9 @@ type
   TMethods = class(TExpandableObject)
   private
     FNamedMethods: TNamedMethods;
+
+    function  GetMethod(AName: String): TMethod; inline;
+    procedure SetMethod(AName: String; AValue: TMethod); inline;
   public
     constructor Create;
     destructor  Destroy; override;
@@ -74,6 +86,20 @@ type
     function RttiInvokeExpandedMethod(const AName: String; AArgs: array of TValue): TValue; override;
 
     function RttiIsExpandedMethod(const AName: String): Boolean; override;
+
+    procedure Clear;
+    function  Exists(AName: String): Boolean; inline;
+
+    property Methods[AName: String]: TMethod read GetMethod write SetMethod; default;
+  end;
+{$ENDREGION}
+
+{$REGION 'TCustomStatement'}
+  TStatementResult = (srContinue);
+
+  TCustomStatement = class
+  public
+    function Execute(ANamespace: TNamespace): TStatementResult; virtual; abstract;
   end;
 {$ENDREGION}
 
@@ -81,6 +107,8 @@ type
   TNamespace = class(TExpandableObject)
   private
     FNamespace: TArray<TObject>;
+
+    FStatements: TArray<TCustomStatement>;
 
     FVariables: TVariables;
     FMethods:   TMethods;
@@ -90,6 +118,8 @@ type
 
     procedure Push(ANamespace: TObject);
     procedure Pop;
+
+    procedure Reset;
 
     function  RttiReadExpandedProperty (const AName: String): TValue;         override;
     procedure RttiWriteExpandedProperty(const AName: String; AValue: TValue); override;
@@ -106,16 +136,78 @@ type
 
     function Evaluate(const AExpression: String): TValue;
 
-    function Eval(const AExpression: String): Variant;
+    function Execute(ANamespace: TNamespace = nil): TStatementResult;
+
+    function AddStatement(AStatement: TCustomStatement): TCustomStatement;
 
     property Variables: TVariables read FVariables;
     property Methods:   TMethods   read FMethods;
   end;
 {$ENDREGION}
 
+{$REGION 'TStatementBlock'}
+  TStatementBlock = class(TCustomStatement)
+  private
+    FNamespace: TNamespace;
+  public
+    constructor Create;
+    destructor  Destroy; override;
+
+    function Execute(ANamespace: TNamespace): TStatementResult; override;
+
+    property Namespace: TNamespace read FNamespace;
+  end;
+{$ENDREGION}
+
+{$REGION 'TStatement'}
+  TStatement = class(TCustomStatement)
+  public
+    Flow:       TStatementResult;
+    Expression: String;
+
+    function Execute(ANamespace: TNamespace): TStatementResult; override;
+  end;
+{$ENDREGION}
+
+{$REGION 'TVariableStatement'}
+  TVariableStatement = class(TCustomStatement)
+  public
+    Names:   TArray<String>;
+    Initial: String;
+    Delete:  Boolean;
+
+    function Execute(ANamespace: TNamespace): TStatementResult; override;
+  end;
+{$ENDREGION}
+
+{$REGION 'TIfStatement'}
+  TIfStatement = class(TCustomStatement)
+  public
+    FTrueStatements:  TStatementBlock;
+    FFalseStatements: TStatementBlock;
+
+    Condition: String;
+
+    constructor Create;
+    destructor  Destroy; override;
+
+    function Execute(ANamespace: TNamespace): TStatementResult; override;
+  end;
+{$ENDREGION}
+
 implementation
 
 {$REGION 'TVariables'}
+function TVariables.GetVariable;
+begin
+  Result := FNamedValues[AName.LowerCase];
+end;
+
+procedure TVariables.SetVariable;
+begin
+  FNamedValues[AName.LowerCase] := AValue;
+end;
+
 constructor TVariables.Create;
 begin
   inherited;
@@ -125,6 +217,7 @@ end;
 
 destructor TVariables.Destroy;
 begin
+  Clear;
   FNamedValues.Free;
 
   inherited;
@@ -166,6 +259,11 @@ begin
     Result := inherited;
 end;
 
+procedure TVariables.Clear;
+begin
+  FNamedValues.Clear;
+end;
+
 procedure TVariables.Declare;
 begin
   var Name := AName.LowerCase;
@@ -178,9 +276,24 @@ procedure TVariables.Delete;
 begin
   FNamedValues.Remove(AName.LowerCase);
 end;
+
+function TVariables.Exists;
+begin
+  Result := FNamedValues.ContainsKey(AName.LowerCase);
+end;
 {$ENDREGION}
 
 {$REGION 'TMethods'}
+function TMethods.GetMethod;
+begin
+  Result := FNamedMethods[AName.LowerCase];
+end;
+
+procedure TMethods.SetMethod;
+begin
+  FNamedMethods[AName.LowerCase] := AValue;
+end;
+
 constructor TMethods.Create;
 begin
   inherited;
@@ -190,6 +303,7 @@ end;
 
 destructor TMethods.Destroy;
 begin
+  Clear;
   FNamedMethods.Free;
 
   inherited;
@@ -212,6 +326,19 @@ begin
   else
     Result := inherited;
 end;
+
+procedure TMethods.Clear;
+begin
+  for var Method in FNamedMethods.Values do
+    Method.Free;
+
+  FNamedMethods.Clear;
+end;
+
+function TMethods.Exists;
+begin
+  Result := FNamedMethods.ContainsKey(AName.LowerCase);
+end;
 {$ENDREGION}
 
 {$REGION 'TNamespace'}
@@ -221,10 +348,15 @@ begin
 
   FVariables := TVariables.Create;
   FMethods   := TMethods.Create;
+
+  Push(FVariables);
+  Push(FMethods);
 end;
 
 destructor TNamespace.Destroy;
 begin
+  Reset;
+
   FMethods.Free;
   FVariables.Free;
 
@@ -243,6 +375,17 @@ begin
     Exit;
 
   SetLength(FNamespace, Length(FNamespace) - 1);
+end;
+
+procedure TNamespace.Reset;
+begin
+  FVariables.Clear;
+  FMethods.Clear;
+
+  for var Statement in FStatements do
+    Statement.Free;
+
+  SetLength(FStatements, 0);
 end;
 
 function TNamespace.RttiReadExpandedProperty;
@@ -969,9 +1112,116 @@ begin
   Result := Compare;
 end;
 
-function TNamespace.Eval(const AExpression: String): Variant;
+function TNamespace.Execute;
 begin
-  Result := Evaluate(AExpression).AsVariant;
+  Result := srContinue;
+
+  if ANamespace = nil then
+    ANamespace := Self;
+
+  for var Statement in FStatements do
+  begin
+    Result := Statement.Execute(ANamespace);
+
+    if Result <> srContinue then
+      Exit;
+  end;
+end;
+
+function TNamespace.AddStatement;
+begin
+  Result := AStatement;
+  SetLength(FStatements, Length(FStatements) + 1);
+  FStatements[High(FStatements)] := AStatement;
+end;
+{$ENDREGION}
+
+{$REGION 'TStatementBlock'}
+constructor TStatementBlock.Create;
+begin
+  inherited;
+
+  FNamespace := TNamespace.Create;
+end;
+
+destructor TStatementBlock.Destroy;
+begin
+  FNamespace.Free;
+
+  inherited;
+end;
+
+function TStatementBlock.Execute;
+begin
+  ANamespace.Push(FNamespace);
+  try
+    Result := FNamespace.Execute(ANamespace);
+  finally
+    ANamespace.Pop;
+  end;
+end;
+{$ENDREGION}
+
+{$REGION 'TStatement'}
+function TStatement.Execute;
+begin
+  if Expression.IsNotEmpty then
+    ANamespace.Evaluate(Expression);
+
+  Result := Flow;
+end;
+{$ENDREGION}
+
+{$REGION 'TVariableStatement'}
+function TVariableStatement.Execute;
+var
+  Value: TValue;
+begin
+  if Initial.IsEmpty or Delete then
+    Value := TValue.Empty
+  else
+    Value := ANamespace.Evaluate(Initial);
+
+  for var Name in Names do
+    if Delete then
+      ANamespace.Variables.Delete(Name)
+    else
+      ANamespace.Variables.Declare(Name, Value);
+
+  Result := srContinue;
+end;
+{$ENDREGION}
+
+{$REGION 'TIfStarement'}
+constructor TIfStatement.Create;
+begin
+  inherited;
+
+  FTrueStatements  := TStatementBlock.Create;
+  FFalseStatements := TStatementBlock.Create;
+end;
+
+destructor TIfStatement.Destroy;
+begin
+  FTrueStatements.Free;
+  FFalseStatements.Free;
+
+  inherited;
+end;
+
+function TIfStatement.Execute;
+var
+  Value: TValue;
+begin
+  if Condition.IsEmpty then
+    Value := TValue.Empty
+  else
+    Value := ANamespace.Evaluate(Condition);
+
+  if Value.ToBoolean then
+    FTrueStatements.Execute(ANamespace)
+  else
+    FFalseStatements.Execute(ANamespace);
 end;
 {$ENDREGION}
 

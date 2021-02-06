@@ -80,6 +80,15 @@ type
   end;
 {$ENDREGION}
 
+{$REGION 'TValueHelper'}
+  TValueHelper = record helper for TValue
+  public
+    function ToInteger: Int64;
+    function ToFloat:   Extended;
+    function ToBoolean: Boolean;
+  end;
+{$ENDREGION}
+
   EReadOnlyProperty = class(Exception);
   EUnknownProperty  = class(Exception);
   EUnknownMethod    = class(Exception);
@@ -343,6 +352,54 @@ end;
 function TExpandableObject.RttiIsExpandedMethod;
 begin
   Result := False;
+end;
+{$ENDREGION}
+
+{$REGION 'TValueHelper'}
+function TValueHelper.ToInteger;
+begin
+  try
+    Result := AsInteger;
+  except
+    case Kind of
+      tkEnumeration: Result := AsOrdinal;
+      tkFloat:       Result := Round(AsExtended);
+      tkClass:       Result := Int64(AsObject);
+      tkClassRef:    Result := Int64(AsClass);
+      tkPointer:     Result := Int64(AsType<Pointer>);
+      tkString,
+      tkWString,
+      tkLString,
+      tkUString:     Result := AsString.AsInteger;
+    else
+      Result := 0;
+    end;
+  end;
+end;
+
+function TValueHelper.ToFloat;
+begin
+  try
+    Result := AsExtended;
+  except
+    Result := ToInteger;
+  end;
+end;
+
+function TValueHelper.ToBoolean;
+begin
+  try
+    Result := AsBoolean
+  except
+    case Kind of
+      tkString,
+      tkWString,
+      tkLString,
+      tkUString: Result := AsString.AsBoolean;
+    else
+      Result := ToInteger <> 0;
+    end;
+  end;
 end;
 {$ENDREGION}
 

@@ -29,19 +29,76 @@ uses
   NixLib.SceneGraph in '..\NixLib.SceneGraph.pas',
   NixLib.Evaluator in '..\NixLib.Evaluator.pas';
 
+type
+  TTestLib = class
+  public
+    procedure Print(AValue: TValue);
+  end;
+
+procedure TTestLib.Print;
+begin
+  WriteLn(AValue.ToString);
+end;
+
 var
   N: TNamespace;
-  R: TValue;
+  L: TTestLib;
   E: String;
+
+  S: TStatement;
+  I: TIfStatement;
 begin
   N := TNamespace.Create;
+  L := TTestLib.Create;
+
+  N.Variables.Declare('TestLib', L);
+
+  S := TStatement.Create;
+  S.Expression := 'Declare("A", 123)';
+  N.AddStatement(S);
+
+  S := TStatement.Create;
+  S.Expression := 'TestLib.Print(A)';
+  N.AddStatement(S);
+
+  I := TIfStatement.Create;
+  I.Condition := 'A==123';
+  N.AddStatement(I);
+
+  S := TStatement.Create;
+  S.Expression := 'Declare("A", 0)';
+  I.FFalseStatements.Namespace.AddStatement(S);
+
+  S := TStatement.Create;
+  S.Expression := 'A="Nope")';
+  I.FFalseStatements.Namespace.AddStatement(S);
+
+  S := TStatement.Create;
+  S.Expression := 'TestLib.Print(A)';
+  I.FFalseStatements.Namespace.AddStatement(S);
+
+  S := TStatement.Create;
+  S.Expression := 'Declare("A", 0)';
+  I.FTrueStatements.Namespace.AddStatement(S);
+
+  S := TStatement.Create;
+  S.Expression := 'A="Nope")';
+  I.FTrueStatements.Namespace.AddStatement(S);
+
+  S := TStatement.Create;
+  S.Expression := 'TestLib.Print(A)';
+  I.FTrueStatements.Namespace.AddStatement(S);
+
+  S := TStatement.Create;
+  S.Expression := 'TestLib.Print(A)';
+  N.AddStatement(S);
+
+  N.Execute;
+
   repeat
     try
       ReadLn(E);
-      R := N.Evaluate(E);
-
-      if not R.IsEmpty then
-        Writeln(R.ToString);
+      N.Evaluate(E);
     except
       on E: Exception do
       begin
